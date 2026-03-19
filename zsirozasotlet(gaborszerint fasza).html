@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<title>Zsírozás</title>
+
+<style>
+body {
+    background:#063;
+    font-family: Arial;
+    color:white;
+}
+
+.hand, .table {
+    display:flex;
+    gap:10px;
+    margin:10px 0;
+}
+
+.card {
+    width:256px;
+    height:341px;
+    border-radius:10px;
+    cursor:pointer;
+    border:2px solid transparent;
+}
+
+.card img {
+    width:100%;
+    height:100%;
+    border-radius:10px;
+}
+
+.card:hover {
+    border: 3px solid blue;
+}
+
+.disabled {
+    opacity:0.4;
+    pointer-events:none;
+}
+
+.area {
+    background:#0005;
+    padding:10px;
+    border-radius:8px;
+}
+</style>
+</head>
+
+<body>
+
+<h1>Zsírozás - Projektmunka</h1>
+<h1>HA HÜLYESÉGET RAKSZ, ELROMLIK</h1>
+<div class="area">
+    <b>Aktív játékos:</b> <span id="player"></span>
+    <!--<button id="passBtn" onclick="passz()" disabled style="margin-left:10px">Passz</button>-->
+    <div id="scores" style="margin-top:8px">J1: 0 — J2: 0 (Összesen: 0/80)</div>
+</div>
+
+
+
+<h3>Játékos 1</h3>
+<div class="hand" id="hand0"></div>
+
+<h3>Asztal</h3>
+<div class="table" id="table"></div>
+
+<h3>Játékos 2</h3>
+<div class="hand" id="hand1"></div>
+
+<script>
+const szinek = ["zöld","szív","tök","makk"];
+const ertekek = ["7","8","9","10","alsó","felső","király","ász"];
+
+const szin = {
+    "zöld": "level",
+    "szív": "sziv",
+    "tök": "tok",
+    "makk": "makk"
+};
+
+const ertek = {
+    "7":"7",
+    "8":"8",
+    "9":"9",
+    "10":"10",
+    "alsó":"also",
+    "felső":"felso",
+    "király":"kiraly",
+    "ász":"asz"
+};
+
+
+function kartyakep(c){
+    return `kartyak/${szin[c.s]}${ertek[c.v]}.png`;
+}
+
+
+let deck=[], kezek=[[],[]], table=[];
+let aktualis=0;
+let utsotamado=null;
+let utesvan=false;
+const MAX_PONTOK = 8;
+let pontok = [0,0];
+
+function kartyaPont(c){
+    if(c.v === "10" || c.v === "ász") return 1;
+    return 0;
+}
+
+function paklitad(){
+    deck=[];
+    szinek.forEach(s=>{
+        ertekek.forEach(v=>{
+            deck.push({s,v});
+        });
+    });
+}
+
+function kever(a){
+    for(let i=a.length-1;i>0;i--){
+        const j=Math.floor(Math.random()*(i+1));
+        [a[i],a[j]]=[a[j],a[i]];
+    }
+}
+
+function oszt(){
+    let turn = 0;
+
+    while(deck.length && (kezek[0].length < 4 || kezek[1].length < 4)){
+        if(kezek[0].length > kezek[1].length) kezek[1].push(deck.pop());
+        if(kezek[turn].length < 4){ 
+                kezek[turn].push(deck.pop());
+        }
+        turn = 1 - turn;
+    }
+}
+
+function hahetes(c){ return c.v==="7"; }
+function ugyanErtek(a,b){ return a.v===b.v; }
+
+function tudTovabb(card){
+    const last = table[table.length-1];
+    if(!last) return false;
+    return ugyanErtek(card,last) || hahetes(card);
+}
+
+function jatszik(p,idx){
+    if (p !== aktualis) return;
+
+    const last = table.length ? table[table.length-1] : null;
+
+    if (table.length === 0) {
+        // első lap: bármit le lehet tenni
+    }
+    else if (utesvan) {
+        const hasValid = kezek[p].some(c => last && (ugyanErtek(c,last) || hahetes(c)));
+        const chosen = kezek[p][idx];
+
+        if (!hasValid) {
+            if (utsotamado !== null && p !== utsotamado) {
+
+                kezek[p].splice(idx,1);
+                megjelen();
+                felveszAsztal(utsotamado);
+                return;
+            }
+        } else {
+           
+            if(kezek[0].length === kezek[1].length && !(hahetes(chosen) || (last && ugyanErtek(chosen,last)))){
+                kezek[p].splice(idx,1);
+                megjelen();
+               
+                felveszAsztal(utsotamado !== null ? utsotamado : (1-p));
+                return;
+            }
+
+            if (!(last && (ugyanErtek(chosen,last) || hahetes(chosen)))) {
+                alert("Válassz ugyanolyan értékű lapot vagy hetest!");
+                return;
+            }
+        }
+    }
+    else {
+        // nincs támadás: az asztalon már lévő kártya után is bármit le lehet tenni
+    }
+
+
+    const card = kezek[p].splice(idx,1)[0];
+    const prev = table.length ? table[table.length-1] : null;
+    const canContinue = prev && (ugyanErtek(card, prev) || hahetes(card));
+    
+    if(utesvan && !canContinue){
+
+        felveszAsztal(utsotamado);
+        return;
+    }
+
+    table.push(card);
+
+    if(canContinue){
+        utsotamado = p;
+        utesvan = true;
+        aktualis = 1 - p;
+    }
+    else if(table.length >= 2){
+
+        felveszAsztal(1-p);
+        return;
+    }
+    else{
+        aktualis = 1 - p;
+    }
+
+    
+    if(utesvan){
+        const next = aktualis;
+        const lastOnTable = table.length ? table[table.length-1] : null;
+        const nextHasValid = kezek[next].some(c => lastOnTable && (ugyanErtek(c,lastOnTable) || hahetes(c)));
+        if(!nextHasValid){
+         
+            felveszAsztal(utsotamado !== null ? utsotamado : (1-next));
+            return;
+        }
+    }
+    
+    megjelen();
+    checkEnd();
+}
+
+function felveszAsztal(p){
+    const diff = kezek[0].length - kezek[1].length;
+    if(diff > 0){
+        let toMove = Math.min(diff, kezek[0].length);
+        for(let i=0;i<toMove;i++){
+            table.push(kezek[0].shift());
+        }
+    } else if(diff < 0){
+        let toMove = Math.min(-diff, kezek[1].length);
+        for(let i=0;i<toMove;i++){
+            table.push(kezek[1].shift());
+        }
+    }
+
+    if(table.length){
+        const sum = table.reduce((s,c)=> s + kartyaPont(c), 0);
+        pontok[p] += sum;
+    }
+    
+    table=[];
+    utesvan=false;
+    utsotamado=null;
+    oszt();
+    aktualis=p;
+    megjelen();
+
+    checkEnd();
+}
+
+function checkEnd(){
+    if(deck.length === 0 && kezek[0].length === 0 && kezek[1].length === 0){
+        const winner = pontok[0] > pontok[1] ? 1 : (pontok[1] > pontok[0] ? 2 : 0);
+        if(winner === 0){
+            alert(`A játék véget ért! Döntetlen: J1 ${pontok[0]} — J2 ${pontok[1]}`);
+        } else {
+            alert(`A játék véget ért! Győztes: Játékos ${winner} — J1: ${pontok[0]} — J2: ${pontok[1]}`);
+        }
+        document.querySelectorAll('.hand .card').forEach(c=>c.classList.add('disabled'));
+        document.getElementById("passBtn").disabled = true;
+    }
+}
+
+function kartyaDiv(c,p,i){
+    const d=document.createElement("div");
+    d.className="card";
+
+    const img=document.createElement("img");
+    img.src = kartyakep(c);
+    img.alt = `${c.s} ${c.v}`;
+
+    d.appendChild(img);
+
+    if(p!==undefined) d.onclick=()=>jatszik(p,i);
+    return d;
+}
+
+function passz(){
+    if(!utesvan) return;
+    if(aktualis === utsotamado) return;
+    felveszAsztal(utsotamado);
+}
+
+function megjelen(){
+    document.getElementById("player").textContent="Játékos "+(aktualis+1);
+
+    document.getElementById("table").innerHTML="";
+    document.getElementById("hand0").innerHTML="";
+    document.getElementById("hand1").innerHTML="";
+
+    table.forEach(c=>{
+        document.getElementById("table").appendChild(kartyaDiv(c));
+    });
+
+    kezek.forEach((h,p)=>{
+        h.forEach((c,i)=>{
+            const d=kartyaDiv(c,p,i);
+            if(p!==aktualis) d.classList.add("disabled");
+            document.getElementById("hand"+p).appendChild(d);
+        });
+    });
+     const scoresEl = document.getElementById("scores");
+    if(scoresEl){
+        const total = pontok[0] + pontok[1];
+        scoresEl.textContent = `J1: ${pontok[0]} — J2: ${pontok[1]} (Összesen: ${total}/${MAX_PONTOK})`;
+    }
+
+    const passBtn = document.getElementById("passBtn");
+    if(passBtn) passBtn.disabled = !(utesvan && utsotamado!==null && aktualis !== utsotamado);
+}
+
+paklitad();
+kever(deck);
+oszt();
+megjelen();
+</script>
+
+</body>
+</html>
